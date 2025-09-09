@@ -1,0 +1,769 @@
+<html lang="zh-CN"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZipUnpack - 在线解压工具</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3B82F6',
+                        secondary: '#10B981',
+                        dark: '#1E293B',
+                        light: '#F8FAFC',
+                        danger: '#EF4444',
+                    },
+                    fontFamily: {
+                        inter: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .drop-shadow-custom {
+                filter: drop-shadow(0 10px 8px rgb(0 0 0 / 0.04)) drop-shadow(0 4px 3px rgb(0 0 0 / 0.1));
+            }
+            .gradient-bg {
+                background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            }
+            .file-hover {
+                @apply transition-all duration-300 ease-in-out transform hover:scale-[1.02] hover:shadow-lg;
+            }
+        }
+    </style>
+</head>
+<body class="font-inter bg-light text-dark min-h-screen flex flex-col">
+    <!-- 导航栏 -->
+    <header class="bg-white shadow-sm sticky top-0 z-50 transition-all duration-300" id="navbar">
+        <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <i class="fa fa-file-archive-o text-primary text-2xl"></i>
+                <h1 class="text-xl md:text-2xl font-bold text-primary">ZipUnpack</h1>
+            </div>
+            <nav class="hidden md:flex items-center space-x-6">
+                <a href="#" class="font-medium hover:text-primary transition-colors">首页</a>
+                <a href="#features" class="font-medium hover:text-primary transition-colors">功能</a>
+                <a href="#how-it-works" class="font-medium hover:text-primary transition-colors">使用方法</a>
+                <a href="#faq" class="font-medium hover:text-primary transition-colors">常见问题</a>
+            </nav>
+            <button class="md:hidden text-dark text-xl" id="menuToggle">
+                <i class="fa fa-bars"></i>
+            </button>
+        </div>
+        <!-- 移动端菜单 -->
+        <div class="md:hidden hidden bg-white absolute w-full shadow-md" id="mobileMenu">
+            <div class="container mx-auto px-4 py-2 flex flex-col space-y-3">
+                <a href="#" class="py-2 font-medium hover:text-primary transition-colors">首页</a>
+                <a href="#features" class="py-2 font-medium hover:text-primary transition-colors">功能</a>
+                <a href="#how-it-works" class="py-2 font-medium hover:text-primary transition-colors">使用方法</a>
+                <a href="#faq" class="py-2 font-medium hover:text-primary transition-colors">常见问题</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主内容区 -->
+    <main class="flex-grow">
+        <!-- 英雄区域 -->
+        <section class="gradient-bg py-16 md:py-24">
+            <div class="container mx-auto px-4">
+                <div class="max-w-3xl mx-auto text-center mb-12">
+                    <h2 class="text-[clamp(2rem,5vw,3.5rem)] font-bold mb-6 leading-tight">简单、快速的在线解压工具！</h2>
+                    <p class="text-lg md:text-xl text-gray-600 mb-8">
+                        无需安装任何软件，直接在浏览器中解压ZIP、RAR等压缩文件，安全又方便
+                    </p>
+                </div>
+                
+                <!-- 拖放区域 -->
+                <div class="max-w-2xl mx-auto">
+                    <div id="dropArea" class="border-2 border-dashed border-primary/50 rounded-xl p-8 md:p-12 text-center bg-white/80 backdrop-blur-sm shadow-lg transition-all duration-300 hover:border-primary">
+                        <i class="fa fa-cloud-upload text-5xl text-primary mb-6"></i>
+                        <h3 class="text-xl font-semibold mb-4">拖放压缩文件到这里</h3>
+                        <p class="text-gray-500 mb-6">或者点击选择文件</p>
+                        <label class="inline-block bg-primary hover:bg-primary/90 text-white font-medium py-3 px-8 rounded-lg cursor-pointer transition-all duration-300 shadow-md hover:shadow-lg">
+                            <i class="fa fa-file-o mr-2"></i>选择压缩文件
+                            <input type="file" id="fileInput" accept=".zip,.rar,.7z,.tar,.gz" class="hidden">
+                        </label>
+                        <p class="text-sm text-gray-400 mt-4">支持 ZIP, RAR, 7Z, TAR, GZ 等格式</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- 解压进度 -->
+        <section id="progressSection" class="py-16 hidden">
+            <div class="container mx-auto px-4">
+                <div class="max-w-2xl mx-auto">
+                    <div class="bg-white rounded-xl shadow-lg p-6 md:p-8">
+                        <h3 class="text-xl font-semibold mb-6 flex items-center">
+                            <i class="fa fa-spinner fa-spin text-primary mr-3"></i>正在解压文件
+                        </h3>
+                        
+                        <div class="mb-6">
+                            <div class="flex justify-between text-sm mb-2">
+                                <span id="progressFileName">file.zip</span>
+                                <span id="progressPercentage">0%</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2.5">
+                                <div id="progressBar" class="bg-primary h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        
+                        <div id="progressDetails" class="text-gray-600 text-sm mb-4 hidden">
+                            <p><i class="fa fa-info-circle mr-2"></i>正在处理: <span id="currentFile">准备中...</span></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- 解压结果 -->
+        <section id="resultSection" class="py-16 hidden">
+            <div class="container mx-auto px-4">
+                <div class="max-w-4xl mx-auto">
+                    <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+                        <div class="p-6 md:p-8 border-b border-gray-100">
+                            <div class="flex justify-between items-center">
+                                <h3 class="text-xl font-semibold flex items-center">
+                                    <i class="fa fa-check-circle text-secondary mr-3"></i>解压完成
+                                </h3>
+                                <button id="downloadAllBtn" class="bg-secondary hover:bg-secondary/90 text-white font-medium py-2 px-4 rounded-lg transition-all duration-300 flex items-center">
+                                    <i class="fa fa-download mr-2"></i>下载全部
+                                </button>
+                            </div>
+                            <p class="text-gray-600 mt-2">文件总数: <span id="totalFiles">0</span></p>
+                        </div>
+                        
+                        <div class="p-6 md:p-8">
+                            <h4 class="font-medium mb-4">文件列表</h4>
+                            <div id="fileList" class="space-y-3 max-h-96 overflow-y-auto pr-2">
+                                <!-- 文件列表将通过JavaScript动态生成 -->
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-8 text-center">
+                        <button id="newUnzipBtn" class="bg-primary hover:bg-primary/90 text-white font-medium py-3 px-8 rounded-lg transition-all duration-300 shadow-md hover:shadow-lg">
+                            <i class="fa fa-refresh mr-2"></i>解压新文件
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- 功能特点 -->
+        <section id="features" class="py-20 bg-gray-50">
+            <div class="container mx-auto px-4">
+                <div class="text-center mb-16">
+                    <h2 class="text-3xl md:text-4xl font-bold mb-4">强大的解压功能</h2>
+                    <p class="text-gray-600 max-w-2xl mx-auto">我们的在线解压工具提供了丰富的功能，满足您的各种解压需求</p>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <div class="bg-white rounded-xl p-6 shadow-md hover:shadow-lg transition-all duration-300">
+                        <div class="w-14 h-14 bg-primary/10 rounded-full flex items-center justify-center mb-6">
+                            <i class="fa fa-file-archive-o text-2xl text-primary"></i>
+                        </div>
+                        <h3 class="text-xl font-semibold mb-3">多格式支持</h3>
+                        <p class="text-gray-600">支持 ZIP、RAR、7Z、TAR、GZ 等多种主流压缩格式，无需担心兼容性问题。</p>
+                    </div>
+                    
+                    <div class="bg-white rounded-xl p-6 shadow-md hover:shadow-lg transition-all duration-300">
+                        <div class="w-14 h-14 bg-primary/10 rounded-full flex items-center justify-center mb-6">
+                            <i class="fa fa-shield text-2xl text-primary"></i>
+                        </div>
+                        <h3 class="text-xl font-semibold mb-3">安全可靠</h3>
+                        <p class="text-gray-600">所有解压操作都在您的浏览器中完成，文件不会上传到服务器，保护您的隐私安全。</p>
+                    </div>
+                    
+                    <div class="bg-white rounded-xl p-6 shadow-md hover:shadow-lg transition-all duration-300">
+                        <div class="w-14 h-14 bg-primary/10 rounded-full flex items-center justify-center mb-6">
+                            <i class="fa fa-bolt text-2xl text-primary"></i>
+                        </div>
+                        <h3 class="text-xl font-semibold mb-3">快速高效</h3>
+                        <p class="text-gray-600">利用最新的JavaScript技术，提供快速的解压体验，即使是大文件也能轻松处理。</p>
+                    </div>
+                    
+                    <div class="bg-white rounded-xl p-6 shadow-md hover:shadow-lg transition-all duration-300">
+                        <div class="w-14 h-14 bg-primary/10 rounded-full flex items-center justify-center mb-6">
+                            <i class="fa fa-mobile text-2xl text-primary"></i>
+                        </div>
+                        <h3 class="text-xl font-semibold mb-3">移动友好</h3>
+                        <p class="text-gray-600">完全响应式设计，在手机、平板和电脑上都能提供出色的使用体验。</p>
+                    </div>
+                    
+                    <div class="bg-white rounded-xl p-6 shadow-md hover:shadow-lg transition-all duration-300">
+                        <div class="w-14 h-14 bg-primary/10 rounded-full flex items-center justify-center mb-6">
+                            <i class="fa fa-cloud-download text-2xl text-primary"></i>
+                        </div>
+                        <h3 class="text-xl font-semibold mb-3">便捷下载</h3>
+                        <p class="text-gray-600">可以单独下载解压后的文件，也可以将所有文件重新打包下载，操作简单方便。</p>
+                    </div>
+                    
+                    <div class="bg-white rounded-xl p-6 shadow-md hover:shadow-lg transition-all duration-300">
+                        <div class="w-14 h-14 bg-primary/10 rounded-full flex items-center justify-center mb-6">
+                            <i class="fa fa-globe text-2xl text-primary"></i>
+                        </div>
+                        <h3 class="text-xl font-semibold mb-3">无需安装</h3>
+                        <p class="text-gray-600">直接在浏览器中使用，无需安装任何软件，随时随地都能进行解压操作。</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- 使用方法 -->
+        <section id="how-it-works" class="py-20">
+            <div class="container mx-auto px-4">
+                <div class="text-center mb-16">
+                    <h2 class="text-3xl md:text-4xl font-bold mb-4">简单三步，完成解压</h2>
+                    <p class="text-gray-600 max-w-2xl mx-auto">使用我们的在线解压工具非常简单，只需三个步骤即可完成</p>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
+                    <div class="text-center relative">
+                        <div class="w-20 h-20 bg-primary text-white rounded-full flex items-center justify-center text-2xl font-bold mx-auto mb-6">1</div>
+                        <h3 class="text-xl font-semibold mb-3">选择文件</h3>
+                        <p class="text-gray-600">拖放压缩文件到上传区域，或者点击选择文件按钮上传您的压缩文件。</p>
+                        
+                        <!-- 连接线 - 仅在中等及以上屏幕显示 -->
+                        <div class="hidden md:block absolute top-10 right-0 w-1/2 h-1 bg-gray-200"></div>
+                    </div>
+                    
+                    <div class="text-center relative">
+                        <div class="w-20 h-20 bg-primary text-white rounded-full flex items-center justify-center text-2xl font-bold mx-auto mb-6">2</div>
+                        <h3 class="text-xl font-semibold mb-3">等待解压</h3>
+                        <p class="text-gray-600">文件上传后会自动开始解压，您可以看到实时的解压进度。</p>
+                        
+                        <!-- 连接线 - 仅在中等及以上屏幕显示 -->
+                        <div class="hidden md:block absolute top-10 right-0 w-1/2 h-1 bg-gray-200"></div>
+                    </div>
+                    
+                    <div class="text-center">
+                        <div class="w-20 h-20 bg-primary text-white rounded-full flex items-center justify-center text-2xl font-bold mx-auto mb-6">3</div>
+                        <h3 class="text-xl font-semibold mb-3">下载文件</h3>
+                        <p class="text-gray-600">解压完成后，您可以选择下载单个文件或全部文件。</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- 常见问题 -->
+        <section id="faq" class="py-20 bg-gray-50">
+            <div class="container mx-auto px-4">
+                <div class="text-center mb-16">
+                    <h2 class="text-3xl md:text-4xl font-bold mb-4">常见问题</h2>
+                    <p class="text-gray-600 max-w-2xl mx-auto">关于我们的在线解压工具，您可能想知道这些</p>
+                </div>
+                
+                <div class="max-w-3xl mx-auto space-y-6">
+                    <div class="bg-white rounded-xl shadow-md overflow-hidden">
+                        <button class="faq-toggle w-full text-left p-6 focus:outline-none flex justify-between items-center">
+                            <span class="font-semibold text-lg">支持哪些压缩文件格式？</span>
+                            <i class="fa fa-chevron-down text-primary transition-transform duration-300"></i>
+                        </button>
+                        <div class="faq-content hidden px-6 pb-6">
+                            <p class="text-gray-600">我们的在线解压工具支持多种主流压缩格式，包括 ZIP、RAR、7Z、TAR、GZ 等。如果您有其他格式的需求，可以联系我们提出建议。</p>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white rounded-xl shadow-md overflow-hidden">
+                        <button class="faq-toggle w-full text-left p-6 focus:outline-none flex justify-between items-center">
+                            <span class="font-semibold text-lg">我的文件会被上传到服务器吗？</span>
+                            <i class="fa fa-chevron-down text-primary transition-transform duration-300"></i>
+                        </button>
+                        <div class="faq-content hidden px-6 pb-6">
+                            <p class="text-gray-600">不会。所有解压操作都在您的浏览器中本地完成，文件不会上传到任何服务器，这意味着您的文件更加安全，并且解压速度也更快。</p>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white rounded-xl shadow-md overflow-hidden">
+                        <button class="faq-toggle w-full text-left p-6 focus:outline-none flex justify-between items-center">
+                            <span class="font-semibold text-lg">可以解压多大的文件？</span>
+                            <i class="fa fa-chevron-down text-primary transition-transform duration-300"></i>
+                        </button>
+                        <div class="faq-content hidden px-6 pb-6">
+                            <p class="text-gray-600">理论上，我们的工具可以处理任何大小的文件，但实际能处理的文件大小取决于您的浏览器和设备性能。对于非常大的文件，建议在性能较好的电脑上使用。</p>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white rounded-xl shadow-md overflow-hidden">
+                        <button class="faq-toggle w-full text-left p-6 focus:outline-none flex justify-between items-center">
+                            <span class="font-semibold text-lg">使用这个工具需要付费吗？</span>
+                            <i class="fa fa-chevron-down text-primary transition-transform duration-300"></i>
+                        </button>
+                        <div class="faq-content hidden px-6 pb-6">
+                            <p class="text-gray-600">不需要。我们的在线解压工具是完全免费的，您可以无限制地使用所有功能，无需支付任何费用。</p>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white rounded-xl shadow-md overflow-hidden">
+                        <button class="faq-toggle w-full text-left p-6 focus:outline-none flex justify-between items-center">
+                            <span class="font-semibold text-lg">为什么有些文件解压失败？</span>
+                            <i class="fa fa-chevron-down text-primary transition-transform duration-300"></i>
+                        </button>
+                        <div class="faq-content hidden px-6 pb-6">
+                            <p class="text-gray-600">解压失败可能有多种原因，包括文件损坏、使用了不支持的压缩算法、文件太大导致内存不足等。您可以尝试重新下载文件，或者在其他设备上尝试解压。</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="bg-dark text-white py-12">
+        <div class="container mx-auto px-4">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+                <div>
+                    <div class="flex items-center space-x-2 mb-6">
+                        <i class="fa fa-file-archive-o text-primary text-2xl"></i>
+                        <h3 class="text-xl font-bold">ZipUnpack</h3>
+                    </div>
+                    <p class="text-gray-400 mb-6">简单、快速、安全的在线解压工具，让您的文件处理更加便捷。</p>
+                    <div class="flex space-x-4">
+                        <a href="#" class="text-gray-400 hover:text-primary transition-colors">
+                            <i class="fa fa-twitter text-xl"></i>
+                        </a>
+                        <a href="#" class="text-gray-400 hover:text-primary transition-colors">
+                            <i class="fa fa-github text-xl"></i>
+                        </a>
+                        <a href="#" class="text-gray-400 hover:text-primary transition-colors">
+                            <i class="fa fa-facebook text-xl"></i>
+                        </a>
+                    </div>
+                </div>
+                
+                <div>
+                    <h4 class="text-lg font-semibold mb-6">快速链接</h4>
+                    <ul class="space-y-3">
+                        <li><a href="#" class="text-gray-400 hover:text-white transition-colors">首页</a></li>
+                        <li><a href="#features" class="text-gray-400 hover:text-white transition-colors">功能</a></li>
+                        <li><a href="#how-it-works" class="text-gray-400 hover:text-white transition-colors">使用方法</a></li>
+                        <li><a href="#faq" class="text-gray-400 hover:text-white transition-colors">常见问题</a></li>
+                    </ul>
+                </div>
+                
+                <div>
+                    <h4 class="text-lg font-semibold mb-6">支持</h4>
+                    <ul class="space-y-3">
+                        <li><a href="#" class="text-gray-400 hover:text-white transition-colors">联系我们</a></li>
+                        <li><a href="#" class="text-gray-400 hover:text-white transition-colors">使用教程</a></li>
+                        <li><a href="#" class="text-gray-400 hover:text-white transition-colors">格式支持</a></li>
+                        <li><a href="#" class="text-gray-400 hover:text-white transition-colors">隐私政策</a></li>
+                    </ul>
+                </div>
+                
+                <div>
+                    <h4 class="text-lg font-semibold mb-6">订阅更新</h4>
+                    <p class="text-gray-400 mb-4">获取最新功能和使用技巧</p>
+                    <form class="flex">
+                        <input type="email" placeholder="您的邮箱地址" class="px-4 py-2 rounded-l-lg w-full focus:outline-none text-dark">
+                        <button type="submit" class="bg-primary hover:bg-primary/90 px-4 py-2 rounded-r-lg transition-colors">
+                            <i class="fa fa-paper-plane"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+            
+            <div class="border-t border-gray-700 mt-12 pt-8 text-center text-gray-500">
+                <p>© 2023 ZipUnpack. 保留所有权利。</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- 通知提示 -->
+    <div id="toast" class="fixed bottom-6 right-6 bg-dark text-white px-6 py-3 rounded-lg shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 flex items-center z-50">
+        <i id="toastIcon" class="fa fa-check-circle mr-3 text-secondary"></i>
+        <span id="toastMessage"></span>
+    </div>
+
+    <script>
+        // 导航栏滚动效果
+        const navbar = document.getElementById('navbar');
+        window.addEventListener('scroll', () => {
+            if (window.scrollY > 50) {
+                navbar.classList.add('py-2', 'shadow');
+                navbar.classList.remove('py-4');
+            } else {
+                navbar.classList.add('py-4');
+                navbar.classList.remove('py-2', 'shadow');
+            }
+        });
+        
+        // 移动端菜单切换
+        const menuToggle = document.getElementById('menuToggle');
+        const mobileMenu = document.getElementById('mobileMenu');
+        
+        menuToggle.addEventListener('click', () => {
+            mobileMenu.classList.toggle('hidden');
+        });
+        
+        // FAQ 折叠功能
+        const faqToggles = document.querySelectorAll('.faq-toggle');
+        
+        faqToggles.forEach(toggle => {
+            toggle.addEventListener('click', () => {
+                const content = toggle.nextElementSibling;
+                const icon = toggle.querySelector('i');
+                
+                content.classList.toggle('hidden');
+                icon.classList.toggle('rotate-180');
+            });
+        });
+        
+        // 拖放功能实现
+        const dropArea = document.getElementById('dropArea');
+        const fileInput = document.getElementById('fileInput');
+        const progressSection = document.getElementById('progressSection');
+        const resultSection = document.getElementById('resultSection');
+        const progressBar = document.getElementById('progressBar');
+        const progressPercentage = document.getElementById('progressPercentage');
+        const progressFileName = document.getElementById('progressFileName');
+        const progressDetails = document.getElementById('progressDetails');
+        const currentFile = document.getElementById('currentFile');
+        const fileList = document.getElementById('fileList');
+        const totalFiles = document.getElementById('totalFiles');
+        const downloadAllBtn = document.getElementById('downloadAllBtn');
+        const newUnzipBtn = document.getElementById('newUnzipBtn');
+        
+        let zip;
+        let zipFiles = [];
+        
+        // 拖放事件
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, preventDefaults, false);
+        });
+        
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropArea.addEventListener(eventName, highlight, false);
+        });
+        
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, unhighlight, false);
+        });
+        
+        function highlight() {
+            dropArea.classList.add('border-primary', 'bg-primary/5');
+        }
+        
+        function unhighlight() {
+            dropArea.classList.remove('border-primary', 'bg-primary/5');
+        }
+        
+        dropArea.addEventListener('drop', handleDrop, false);
+        
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            
+            if (files.length) {
+                handleFiles(files[0]);
+            }
+        }
+        
+        // 文件选择
+        fileInput.addEventListener('change', function() {
+            if (this.files.length) {
+                handleFiles(this.files[0]);
+            }
+        });
+        
+        dropArea.addEventListener('click', () => {
+            fileInput.click();
+        });
+        
+        // 处理文件
+        function handleFiles(file) {
+            if (!file.name.match(/\.(zip|rar|7z|tar|gz)$/i)) {
+                showToast('请选择有效的压缩文件', 'error');
+                return;
+            }
+            
+            // 显示进度区域
+            progressFileName.textContent = file.name;
+            progressBar.style.width = '0%';
+            progressPercentage.textContent = '0%';
+            progressSection.classList.remove('hidden');
+            resultSection.classList.add('hidden');
+            
+            // 解压文件
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                JSZip.loadAsync(e.target.result)
+                    .then(function(loadedZip) {
+                        zip = loadedZip;
+                        zipFiles = Object.values(zip.files);
+                        
+                        // 更新总文件数
+                        totalFiles.textContent = zipFiles.filter(f => !f.dir).length;
+                        
+                        // 显示解压进度
+                        let processed = 0;
+                        const total = zipFiles.length;
+                        
+                        // 遍历所有文件，更新进度
+                        zipFiles.forEach((file, index) => {
+                            if (!file.dir) {
+                                // 仅处理文件，不处理目录
+                                zip.file(file.name).async("blob").then(function() {
+                                    processed++;
+                                    const percent = Math.round((processed / total) * 100);
+                                    updateProgress(percent, file.name);
+                                    
+                                    // 全部处理完成
+                                    if (processed === total) {
+                                        setTimeout(() => {
+                                            displayResults();
+                                        }, 500);
+                                    }
+                                });
+                            } else {
+                                processed++;
+                                const percent = Math.round((processed / total) * 100);
+                                updateProgress(percent, file.name);
+                            }
+                        });
+                    })
+                    .catch(function(error) {
+                        console.error("解压失败:", error);
+                        showToast('解压失败: ' + error.message, 'error');
+                        progressSection.classList.add('hidden');
+                    });
+            };
+            
+            reader.readAsArrayBuffer(file);
+        }
+        
+        // 更新进度
+        function updateProgress(percent, fileName) {
+            progressBar.style.width = percent + '%';
+            progressPercentage.textContent = percent + '%';
+            
+            if (percent > 0) {
+                progressDetails.classList.remove('hidden');
+                currentFile.textContent = fileName;
+            }
+        }
+        
+        // 显示解压结果
+        function displayResults() {
+            progressSection.classList.add('hidden');
+            resultSection.classList.remove('hidden');
+            
+            // 清空文件列表
+            fileList.innerHTML = '';
+            
+            // 按目录和文件组织
+            const directories = {};
+            const files = [];
+            
+            zipFiles.forEach(file => {
+                if (file.dir) {
+                    directories[file.name] = true;
+                } else {
+                    files.push(file);
+                }
+            });
+            
+            // 添加目录
+            Object.keys(directories).sort().forEach(dir => {
+                const dirElement = document.createElement('div');
+                dirElement.className = 'flex items-center p-3 bg-gray-50 rounded-lg file-hover';
+                dirElement.innerHTML = `
+                    <i class="fa fa-folder text-yellow-500 mr-3 text-xl"></i>
+                    <div class="flex-grow">
+                        <div class="font-medium">${getFileName(dir)}</div>
+                        <div class="text-sm text-gray-500">文件夹</div>
+                    </div>
+                `;
+                fileList.appendChild(dirElement);
+            });
+            
+            // 添加文件
+            files.sort((a, b) => a.name.localeCompare(b.name)).forEach(file => {
+                const fileElement = document.createElement('div');
+                const fileSize = formatFileSize(file._data.uncompressedSize);
+                const fileIcon = getFileIcon(file.name);
+                
+                fileElement.className = 'flex items-center p-3 bg-gray-50 rounded-lg file-hover';
+                fileElement.innerHTML = `
+                    <i class="${fileIcon} mr-3 text-xl"></i>
+                    <div class="flex-grow">
+                        <div class="font-medium">${getFileName(file.name)}</div>
+                        <div class="text-sm text-gray-500">${fileSize}</div>
+                    </div>
+                    <button class="download-file bg-primary/10 hover:bg-primary/20 text-primary p-2 rounded-lg transition-colors" data-name="${file.name}">
+                        <i class="fa fa-download"></i>
+                    </button>
+                `;
+                fileList.appendChild(fileElement);
+            });
+            
+            // 添加下载单个文件事件
+            document.querySelectorAll('.download-file').forEach(button => {
+                button.addEventListener('click', function() {
+                    const fileName = this.getAttribute('data-name');
+                    downloadFile(fileName);
+                });
+            });
+        }
+        
+        // 下载单个文件
+        function downloadFile(fileName) {
+            zip.file(fileName).async("blob").then(function(blob) {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = getFileName(fileName);
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                showToast('文件下载已开始', 'success');
+            });
+        }
+        
+        // 下载所有文件
+        downloadAllBtn.addEventListener('click', function() {
+            // 创建一个新的ZIP文件，包含所有解压后的文件
+            const newZip = new JSZip();
+            
+            zipFiles.forEach(file => {
+                if (!file.dir) {
+                    newZip.file(getFileName(file.name), zip.file(file.name).async("blob"));
+                }
+            });
+            
+            // 生成ZIP文件并下载
+            newZip.generateAsync({type: "blob"}, function updateCallback(metadata) {
+                const percent = Math.round(metadata.percent);
+                // 可以在这里更新进度，但为了简化，我们不显示这个进度
+            }).then(function(content) {
+                const url = URL.createObjectURL(content);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'unzipped_files.zip';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                showToast('所有文件已打包下载', 'success');
+            });
+        });
+        
+        // 解压新文件
+        newUnzipBtn.addEventListener('click', function() {
+            resultSection.classList.add('hidden');
+            fileInput.value = ''; // 重置文件输入
+        });
+        
+        // 辅助函数：获取文件名（不含路径）
+        function getFileName(path) {
+            return path.split('/').pop();
+        }
+        
+        // 辅助函数：格式化文件大小
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+        
+        // 辅助函数：根据文件扩展名获取图标
+        function getFileIcon(fileName) {
+            const ext = fileName.split('.').pop().toLowerCase();
+            
+            if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg'].includes(ext)) {
+                return 'fa fa-file-image-o text-green-500';
+            } else if (['doc', 'docx'].includes(ext)) {
+                return 'fa fa-file-word-o text-blue-500';
+            } else if (['xls', 'xlsx'].includes(ext)) {
+                return 'fa fa-file-excel-o text-green-600';
+            } else if (['ppt', 'pptx'].includes(ext)) {
+                return 'fa fa-file-powerpoint-o text-orange-500';
+            } else if (['pdf'].includes(ext)) {
+                return 'fa fa-file-pdf-o text-red-500';
+            } else if (['txt', 'md', 'html', 'css', 'js', 'json', 'xml', 'php', 'py', 'java', 'c', 'cpp'].includes(ext)) {
+                return 'fa fa-file-text-o text-gray-700';
+            } else if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) {
+                return 'fa fa-file-archive-o text-yellow-600';
+            } else if (['mp3', 'wav', 'ogg'].includes(ext)) {
+                return 'fa fa-file-audio-o text-purple-500';
+            } else if (['mp4', 'avi', 'mov', 'mkv'].includes(ext)) {
+                return 'fa fa-file-video-o text-red-600';
+            } else {
+                return 'fa fa-file-o text-gray-500';
+            }
+        }
+        
+        // 显示提示消息
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            const toastIcon = document.getElementById('toastIcon');
+            
+            toastMessage.textContent = message;
+            
+            if (type === 'success') {
+                toastIcon.className = 'fa fa-check-circle mr-3 text-secondary';
+            } else if (type === 'error') {
+                toastIcon.className = 'fa fa-exclamation-circle mr-3 text-danger';
+            }
+            
+            // 显示提示
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+            
+            // 3秒后隐藏
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+        
+        // 平滑滚动
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                
+                const targetId = this.getAttribute('href');
+                if (targetId === '#') return;
+                
+                const targetElement = document.querySelector(targetId);
+                if (targetElement) {
+                    window.scrollTo({
+                        top: targetElement.offsetTop - 80,
+                        behavior: 'smooth'
+                    });
+                    
+                    // 如果是移动端，点击后关闭菜单
+                    if (!mobileMenu.classList.contains('hidden')) {
+                        mobileMenu.classList.add('hidden');
+                    }
+                }
+            });
+        });
+    </script>
+
+
+</body></html>
